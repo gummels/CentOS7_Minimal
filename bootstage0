@@ -1,0 +1,30 @@
+echo "Initializing CentOS7_Minimal- `date` "
+
+VBoxManage storageattach "CentOS7_Minimal" --storagectl "IDE" --port 1 --device 0 --type dvddrive --medium CentOS-7.0-1406-x86_64-Minimal.iso
+VBoxManage modifyvm CentOS7_Minimal --boot1 dvd --boot2 disk
+
+http-server -p 7777 > http-server.log &
+
+HTTPPID=$!
+
+VBoxManage startvm CentOS7_Minimal
+
+SPINNER="0123456789"
+while [ `VBoxManage showvminfo CentOS7_Minimal | awk '/State:/{printf("%s-%s",$2,$3)}'` != "powered-off" ]
+do
+  if [ ${COUNT:-1} -eq "0" ]
+  then
+    printf '\b#%.1s' "$SPINNER"
+  else
+    printf '\b%.1s' "$SPINNER"
+  fi
+  sleep 1
+
+  SPINNER=${SPINNER#?}${SPINNER%?????????}
+  COUNT=`printf '%.1s' "$SPINNER"`
+done
+
+kill ${HTTPPID}
+
+echo
+echo "CentOS7_Minimal Initialized - `date`"

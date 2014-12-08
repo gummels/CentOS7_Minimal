@@ -1,0 +1,98 @@
+#!/bin/bash
+
+for LABEL in `/bin/lsblk -nplo label,name |/bin/awk '/C7M_/{printf("%s=%s\n",$1,$2)}'`
+do
+  declare ${LABEL}
+done
+
+/bin/echo "Removing iso kernel..."
+/bin/yum -y erase kernel-3.10.0-123.el7
+
+/bin/echo "Installing Virtual Box Guest Additions..."
+/bin/mount -o loop /dev/sr0 /mnt
+/bin/bash /mnt/VBoxLinuxAdditions.run install force
+/bin/umount /mnt
+
+/bin/echo "Reducing CentOS7_Minimal..."
+
+# Zero out history and log files
+
+/bin/echo "Zeroing out history and log files..."
+
+ZERO_FILES=(
+  "/root/.bash_history"
+  "/home/vagrant/.bash_history"
+  "/etc/resolv.conf"
+  "/var/log/tallylog"
+  "/var/log/lastlog"
+  "/var/log/wtmp"
+  "/var/log/btmp"
+  "/var/log/messages"
+  "/var/log/secure"
+  "/var/log/maillog"
+  "/var/log/spooler"
+  "/var/log/audit/audit.log"
+  "/var/log/tuned/tuned.log"
+  "/var/log/cron"
+  "/var/log/grubby"
+  "/var/log/mail.log"
+  "/var/log/dmesg.old"
+  "/var/log/mail"
+  "/var/log/boot.log"
+  "/var/log/dmesg"
+)
+
+for FILE in ${ZERO_FILES[@]}
+do
+  > ${FILE}
+done
+
+RM_FILES=(
+  "/var/lib/NetworkManager/*lease"
+)
+
+/bin/echo "Removing state files such as dhcp leases..."
+# You must turn off file glob in addition to quoting the string in the array
+# for this to work.  Not exactly sure why the for loop first expands the 
+# asterisk before it is concatenated with the root directory.
+# http://www.gnu.org/software/findutils/manual/html_node/find_html/Full-Name-Patterns.html
+
+set -f 
+for FILE in ${RM_FILES[@]}
+do
+  /bin/find `/bin/dirname ${FILE}` -path ${FILE} -exec /bin/rm {} \;
+done
+set +f
+
+# White out file systems
+# Math done with bash 'let'
+# See : http://faculty.salina.k-state.edu/tim/unix_sg/bash/math.html
+
+/bin/echo "White out Filesystems..."
+
+AVAIL_BOOT=`df --sync -k --output=avail /boot|tail -n1`
+/bin/dd if=/dev/zero of=/boot/whitespace bs=1024 count=${AVAIL_BOOT}
+rm -f /boot/whitespace
+
+AVAIL_ROOT=`df --sync -k --output=avail /|tail -n1`
+/bin/dd if=/dev/zero of=/whitespace bs=1024 count=${AVAIL_ROOT}
+rm -f /whitespace
+
+# White out swap
+
+/bin/echo "White out Swap..."
+
+C7M_SWAP_UUID=`/sbin/swaplabel ${C7M_SWAP} | /bin/awk '/UUID/{print $2}'`
+/bin/echo "Attempting to swapoff uuid ${C7M_SWAP_UUID} for dev ${C7M_SWAP}"
+/sbin/swapoff -U ${C7M_SWAP_UUID}
+/bin/dd if=/dev/zero of=${C7M_SWAP} bs=1024
+/sbin/mkswap -L C7M_SWAP ${C7M_SWAP} -U ${C7M_SWAP_UUID}
+
+/bin/echo "CentOS7_Minimal Reduction Complete!"
+
+/bin/systemctl disable firstboot.service
+/bin/rm -f /usr/lib/systemd/system/firstboot.service
+/bin/rm -f /root/firstboot.script
+/bin/rm -f /root/bootstage1.script
+
+/sbin/shutdown -h now

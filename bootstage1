@@ -1,0 +1,28 @@
+SPINNER='0123456789'
+
+echo "bootstage1 Running- `date` "
+
+VBoxManage storageattach "CentOS7_Minimal" --storagectl "IDE" --port 1 --device 0 --type dvddrive --medium `VBoxManage list systemproperties | awk '/Default Guest Additions ISO/{print $5}'`
+VBoxManage modifyvm CentOS7_Minimal --boot1 disk --boot2 dvd
+
+VBoxManage startvm CentOS7_Minimal
+
+SPINNER="0123456789"
+while [ `VBoxManage showvminfo CentOS7_Minimal | awk '/State:/{printf("%s-%s",$2,$3)}'` != "powered-off" ]
+do
+
+  if [ ${COUNT:-1} -eq "0" ]
+  then
+    printf '\b#%.1s' "$SPINNER"
+  else
+    printf '\b%.1s' "$SPINNER"
+  fi
+  sleep 1
+
+  SPINNER=${SPINNER#?}${SPINNER%?????????}
+  COUNT=`printf '%.1s' "$SPINNER"`
+done
+
+echo
+echo "bootstage1 Complete - `date`"
+

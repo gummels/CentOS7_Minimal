@@ -1,0 +1,11 @@
+VERSION="7.0.9003"
+VM="CentOS7_Minimal"
+BOX="${VM}_${VERSION}.box"
+if [[ -e ${BOX} ]]
+then
+  rm ${BOX}
+fi
+
+vagrant package --vagrantfile Vagrantfile --output ${BOX} --base ${VM}
+
+shasum ${BOX}
